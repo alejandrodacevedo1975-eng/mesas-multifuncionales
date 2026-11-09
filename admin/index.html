@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#17100b">
+<meta name="robots" content="noindex, nofollow">
+<title>Administración · Mesas Multifuncionales</title>
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<div class="top"><div class="in">
+  <a class="brand" href="/admin/">Administración<small>Mesas Multifuncionales</small></a>
+  <button class="btn ghost sm hidden" id="salir">Salir</button>
+</div></div>
+
+<main class="wrap">
+  <section id="aLogin" class="hidden">
+    <form id="fLogin" class="card">
+      <h2>Acceso del propietario</h2>
+      <label for="pw">Contraseña</label>
+      <input id="pw" type="password" autocomplete="current-password" required>
+      <div class="msg" id="mLogin"></div>
+      <button class="btn full" type="submit">Entrar</button>
+    </form>
+  </section>
+
+  <section id="aPanel" class="hidden">
+    <div class="grid">
+      <div class="stat"><b id="kPen">$0</b><span>Comisiones por pagar (pendientes + solicitadas)</span></div>
+      <div class="stat"><b id="kPag">$0</b><span>Comisiones ya pagadas</span></div>
+      <div class="stat"><b id="kNue">0</b><span>Pedidos nuevos por entregar</span></div>
+      <div class="stat"><b id="kSol">0</b><span>Solicitudes de pago por resolver</span></div>
+      <div class="stat"><b id="kEnt">0</b><span>Pedidos entregados</span></div>
+      <div class="stat"><b id="kVen">$0</b><span>Vendido y entregado</span></div>
+    </div>
+    <div class="tabs">
+      <button data-t="ped" class="on">Pedidos</button>
+      <button data-t="sol">Pagos</button>
+      <button data-t="ven">Vendedores</button>
+    </div>
+    <div id="tPed" class="card"></div>
+    <div id="tSol" class="card hidden"></div>
+    <div id="tVen" class="card hidden"></div>
+    <div class="msg" id="mGlobal"></div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const cop = n => '$' + Number(n || 0).toLocaleString('es-CO');
+const fecha = d => d ? new Date(d).toLocaleDateString('es-CO', {day:'numeric', month:'short', year:'numeric'}) : '';
+const ESTADO = {nuevo:'Nuevo', entregado:'Entregado', cancelado:'Cancelado', pendiente:'Pendiente', solicitada:'Solicitada', pagada:'Pagada', aprobada:'Aprobada', rechazada:'Rechazada', cancelada:'Cancelada'};
+const badge = e => `<span class="badge b-${esc(e)}">${esc(ESTADO[e] || e)}</span>`;
+
+async function api(url, body) {
+  const opt = body ? {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)} : {};
+  const r = await fetch(url, opt);
+  let j = {}; try { j = await r.json(); } catch (_) {}
+  return {ok: r.ok, status: r.status, data: j};
+}
+function aviso(tipo, texto) { const m = $('mGlobal'); m.className = 'msg ' + (tipo || ''); m.textContent = texto || ''; }
+
+$('fLogin').onsubmit = async e => {
+  e.preventDefault();
+  const r = await api('/api/admin', {accion:'login', password:$('pw').value});
+  if (!r.ok) { const m = $('mLogin'); m.className = 'msg err'; m.textContent = r.data.error || 'Error'; return; }
+  $('pw').value = ''; cargar();
+};
+$('salir').onclick = async () => { await api('/api/admin', {accion:'logout'}); mostrarLogin(); };
+function mostrarLogin() { $('aPanel').classList.add('hidden'); $('aLogin').classList.remove('hidden'); $('salir').classList.add('hidden'); }
+
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  ['ped','sol','ven'].forEach(t => $('t' + t[0].toUpperCase() + t.slice(1)).classList.toggle('hidden', t !== b.dataset.t));
+});
+
+async function accion(body, confirmar) {
+  if (confirmar && !confirm(confirmar)) return;
+  aviso();
+  const r = await api('/api/admin', body);
+  if (!r.ok) { aviso('err', r.data.error || 'No se pudo completar'); window.scrollTo({top: document.body.scrollHeight, behavior:'smooth'}); return; }
+  await cargar();
+}
+window.entregar = id => accion({accion:'pedido_estado', id, estado:'entregado'}, `¿Confirmas que el pedido #${id} ya fue ENTREGADO? Se generará la comisión del vendedor (si tiene).`);
+window.cancelar = id => accion({accion:'pedido_estado', id, estado:'cancelado'}, `¿Cancelar el pedido #${id}? No se pagará comisión.`);
+window.reabrir = id => accion({accion:'pedido_estado', id, estado:'nuevo'}, `¿Reabrir el pedido #${id}?`);
+window.aprobar = id => { const nota = prompt('Nota para el vendedor (opcional):', ''); if (nota === null) return; accion({accion:'solicitud_resolver', id, decision:'aprobar', nota}); };
+window.rechazar = id => { const nota = prompt('Motivo del rechazo (el vendedor lo verá):', ''); if (nota === null) return; accion({accion:'solicitud_resolver', id, decision:'rechazar', nota}); };
+window.pagar = id => { const referencia = prompt('Referencia o comprobante del pago realizado (opcional):', ''); if (referencia === null) return; accion({accion:'solicitud_pagar', id, referencia}, `¿Confirmas que YA enviaste el pago de la solicitud #${id}?`); };
+
+async function cargar() {
+  const r = await api('/api/admin');
+  if (!r.ok) return mostrarLogin();
+  const D = r.data;
+  $('aLogin').classList.add('hidden'); $('aPanel').classList.remove('hidden'); $('salir').classList.remove('hidden');
+  $('kPen').textContent = cop(D.comisiones.pendiente + D.comisiones.solicitada);
+  $('kPag').textContent = cop(D.comisiones.pagada);
+  $('kNue').textContent = D.totales.nuevos; $('kEnt').textContent = D.totales.entregados; $('kVen').textContent = cop(D.totales.vendido);
+  $('kSol').textContent = D.solicitudes.filter(s => s.estado === 'pendiente' || s.estado === 'aprobada').length;
+
+  $('tPed').innerHTML = '<h3>Todos los pedidos</h3>' + (D.pedidos.length ? D.pedidos.map(p => `
+    <div class="row"><div class="l1"><span>#${p.id} · ${esc(p.cliente_nombre)}</span>${badge(p.estado)}</div>
+    <div class="l2">${fecha(p.creado_en)} · ${p.cantidad} × mesa ${p.puestos} puestos · paño ${esc(p.color)} · ${cop(p.total)}</div>
+    <div class="l2">📱 <a href="https://wa.me/57${esc(p.cliente_celular)}" target="_blank" rel="noopener">${esc(p.cliente_celular)}</a> · ${esc(p.ciudad)} · ${esc(p.direccion)}</div>
+    ${p.notas ? `<div class="l2">Notas: ${esc(p.notas)}</div>` : ''}
+    <div class="l2"><b style="color:var(--brass-2)">${p.vendedor_nombre ? 'Lo consiguió: ' + esc(p.vendedor_nombre) + ' (' + esc(p.vendedor_codigo) + ')' + (p.comision ? ' · comisión ' + cop(p.comision) + ' (' + esc(ESTADO[p.comision_estado]) + ')' : '') : 'Venta directa (sin vendedor)'}</b></div>
+    <div class="acts">
+      ${p.estado === 'nuevo' ? `<button class="btn ok sm" onclick="entregar(${p.id})">Confirmar entrega</button><button class="btn bad sm" onclick="cancelar(${p.id})">Cancelar</button>` : ''}
+      ${p.estado === 'entregado' ? `<button class="btn bad sm" onclick="cancelar(${p.id})">Cancelar (devolución)</button>` : ''}
+      ${p.estado === 'cancelado' ? `<button class="btn ghost sm" onclick="reabrir(${p.id})">Reabrir</button>` : ''}
+    </div></div>`).join('') : '<div class="empty">Aún no hay pedidos.</div>');
+
+  $('tSol').innerHTML = '<h3>Solicitudes de pago</h3>' + (D.solicitudes.length ? D.solicitudes.map(s => `
+    <div class="row"><div class="l1"><span>#${s.id} · ${esc(s.vendedor_nombre)} · ${cop(s.monto)}</span>${badge(s.estado)}</div>
+    <div class="l2">${fecha(s.creado_en)} · ${esc(s.metodo)}: <b>${esc(s.cuenta)}</b> · 📱 <a href="https://wa.me/57${esc(s.vendedor_celular)}" target="_blank" rel="noopener">${esc(s.vendedor_celular)}</a></div>
+    ${s.nota_admin ? `<div class="l2">Nota: ${esc(s.nota_admin)}</div>` : ''}
+    ${s.referencia_pago ? `<div class="l2">Referencia: ${esc(s.referencia_pago)} · pagado ${fecha(s.pagado_en)}</div>` : ''}
+    <div class="acts">
+      ${s.estado === 'pendiente' ? `<button class="btn ok sm" onclick="aprobar(${s.id})">Aprobar</button><button class="btn bad sm" onclick="rechazar(${s.id})">Rechazar</button>` : ''}
+      ${s.estado === 'aprobada' ? `<button class="btn sm" onclick="pagar(${s.id})">Registrar pago realizado</button>` : ''}
+    </div></div>`).join('') : '<div class="empty">No hay solicitudes todavía.</div>');
+
+  $('tVen').innerHTML = `<h3>Vendedores registrados (${D.vendedores.length})</h3>` + (D.vendedores.length ? D.vendedores.map(v => `
+    <div class="row"><div class="l1"><span>${esc(v.nombre)}</span><span class="muted">${esc(v.codigo)}</span></div>
+    <div class="l2">📱 <a href="https://wa.me/57${esc(v.celular)}" target="_blank" rel="noopener">${esc(v.celular)}</a> · ${esc(v.email)} · desde ${fecha(v.creado_en)}</div>
+    <div class="l2">Clientes: ${v.clientes} · Pedidos: ${v.pedidos} · Entregados: ${v.entregados}</div>
+    <div class="l2">Pendiente ${cop(v.pendiente)} · Solicitada ${cop(v.solicitada)} · Pagada ${cop(v.pagada)}</div></div>`).join('') : '<div class="empty">Aún no hay vendedores.</div>');
+}
+cargar();
+</script>
+</body>
+</html>

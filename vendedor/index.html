@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#17100b">
+<meta name="robots" content="noindex">
+<title>Vendedores · Mesas Multifuncionales</title>
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<div class="top"><div class="in">
+  <a class="brand" href="/">Mesas Multifuncionales<small>Programa de vendedores</small></a>
+  <button class="btn ghost sm hidden" id="salir">Salir</button>
+</div></div>
+
+<main class="wrap">
+  <!-- ACCESO -->
+  <section id="vAuth" class="hidden">
+    <div class="card">
+      <h2>Gana dinero vendiendo mesas</h2>
+      <p class="muted">Regístrate gratis, comparte tu enlace y recibe <b style="color:var(--brass-2)">$40.000 COP</b> por cada mesa vendida y entregada. No compras nada ni inviertes dinero.</p>
+    </div>
+    <div class="tabs">
+      <button id="tReg" class="on">Registrarme</button>
+      <button id="tLog">Ya tengo cuenta</button>
+    </div>
+    <form id="fReg" class="card" autocomplete="on">
+      <h3>Crear mi cuenta gratis</h3>
+      <label for="rn">Nombre completo</label><input id="rn" autocomplete="name" required maxlength="80">
+      <label for="rc">Celular (WhatsApp)</label><input id="rc" type="tel" inputmode="numeric" autocomplete="tel" placeholder="3001234567" required>
+      <label for="re">Correo</label><input id="re" type="email" autocomplete="email" required maxlength="120">
+      <label for="rp">Contraseña (mínimo 8 caracteres)</label><input id="rp" type="password" autocomplete="new-password" minlength="8" required>
+      <label class="check"><input type="checkbox" id="ra"> <span>Entiendo que gano $40.000 COP por cada mesa vendida <b>y entregada</b>. Los pedidos cancelados o no entregados no pagan comisión.</span></label>
+      <div class="msg" id="mReg"></div>
+      <button class="btn full" id="bReg" type="submit">Crear mi cuenta</button>
+    </form>
+    <form id="fLog" class="card hidden" autocomplete="on">
+      <h3>Ingresar</h3>
+      <label for="le">Correo</label><input id="le" type="email" autocomplete="email" required>
+      <label for="lp">Contraseña</label><input id="lp" type="password" autocomplete="current-password" required>
+      <div class="msg" id="mLog"></div>
+      <button class="btn full" id="bLog" type="submit">Ingresar</button>
+    </form>
+  </section>
+
+  <!-- PANEL -->
+  <section id="vPanel" class="hidden">
+    <div class="card">
+      <h2 id="hola">Hola</h2>
+      <p class="muted">Comparte tu enlace. Cada cliente que entre por él y compre queda registrado a tu nombre durante 30 días.</p>
+      <label for="enlace">Tu enlace personal</label>
+      <div class="link-box"><input id="enlace" readonly><button class="btn sm" id="copiar">Copiar</button></div>
+      <div class="acts" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <a class="btn sm" id="shWa" target="_blank" rel="noopener">Compartir por WhatsApp</a>
+        <button class="btn ghost sm hidden" id="shNat">Más opciones…</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="stat"><b id="sCli">0</b><span>Clientes que llegaron</span></div>
+      <div class="stat"><b id="sPed">0</b><span>Pedidos conseguidos</span></div>
+      <div class="stat"><b id="sEnt">0</b><span>Mesas entregadas (pedidos)</span></div>
+      <div class="stat"><b id="sPro">0</b><span>Pedidos en proceso</span></div>
+      <div class="stat"><b id="cPen">$0</b><span>Comisión pendiente</span></div>
+      <div class="stat"><b id="cPag">$0</b><span>Comisión pagada</span></div>
+    </div>
+
+    <div class="card">
+      <h3>Solicitar el pago de mis ganancias</h3>
+      <p class="muted" id="solInfo"></p>
+      <form id="fSol">
+        <label for="sm">¿Dónde quieres recibir el pago?</label>
+        <select id="sm"><option>Nequi</option><option>Daviplata</option><option>Bancolombia</option><option>Otro banco</option></select>
+        <label for="sc">Número de cuenta o celular</label><input id="sc" inputmode="numeric" maxlength="40" placeholder="Ej: 3001234567">
+        <div class="msg" id="mSol"></div>
+        <button class="btn full" id="bSol" type="submit">Solicitar pago</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Mis pedidos</h3>
+      <div id="lPed"></div>
+    </div>
+    <div class="card">
+      <h3>Mis solicitudes de pago</h3>
+      <div id="lSol"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const cop = n => '$' + Number(n || 0).toLocaleString('es-CO');
+const fecha = d => d ? new Date(d).toLocaleDateString('es-CO', {day:'numeric', month:'short', year:'numeric'}) : '';
+const ESTADO = {nuevo:'En proceso', entregado:'Entregado', cancelado:'Cancelado', pendiente:'Pendiente', solicitada:'Solicitada', pagada:'Pagada', aprobada:'Aprobada', rechazada:'Rechazada', cancelada:'Cancelada'};
+const badge = e => `<span class="badge b-${esc(e)}">${esc(ESTADO[e] || e)}</span>`;
+
+async function api(url, body) {
+  const opt = body ? {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)} : {};
+  const r = await fetch(url, opt);
+  let j = {}; try { j = await r.json(); } catch (_) {}
+  return {ok: r.ok, status: r.status, data: j};
+}
+function msg(id, tipo, texto) { const m = $(id); m.className = 'msg ' + (tipo || ''); m.textContent = texto || ''; }
+
+function vistaAuth(tab) {
+  $('vPanel').classList.add('hidden'); $('vAuth').classList.remove('hidden'); $('salir').classList.add('hidden');
+  const reg = tab !== 'login';
+  $('fReg').classList.toggle('hidden', !reg); $('fLog').classList.toggle('hidden', reg);
+  $('tReg').classList.toggle('on', reg); $('tLog').classList.toggle('on', !reg);
+}
+$('tReg').onclick = () => vistaAuth('reg');
+$('tLog').onclick = () => vistaAuth('login');
+
+$('fReg').onsubmit = async e => {
+  e.preventDefault(); msg('mReg'); $('bReg').disabled = true;
+  const r = await api('/api/auth', {accion:'registro', nombre:$('rn').value, celular:$('rc').value, email:$('re').value, password:$('rp').value, acepto:$('ra').checked});
+  $('bReg').disabled = false;
+  if (!r.ok) return msg('mReg', 'err', r.data.error || 'No se pudo crear la cuenta');
+  cargarPanel();
+};
+$('fLog').onsubmit = async e => {
+  e.preventDefault(); msg('mLog'); $('bLog').disabled = true;
+  const r = await api('/api/auth', {accion:'login', email:$('le').value, password:$('lp').value});
+  $('bLog').disabled = false;
+  if (!r.ok) return msg('mLog', 'err', r.data.error || 'No se pudo ingresar');
+  cargarPanel();
+};
+$('salir').onclick = async () => { await api('/api/auth', {accion:'logout'}); vistaAuth('login'); };
+
+let D = null;
+async function cargarPanel() {
+  const r = await api('/api/vendedor');
+  if (!r.ok) return vistaAuth(location.hash === '#registro' ? 'reg' : 'login');
+  D = r.data;
+  $('vAuth').classList.add('hidden'); $('vPanel').classList.remove('hidden'); $('salir').classList.remove('hidden');
+  const link = location.origin + '/?ref=' + D.vendedor.codigo;
+  $('hola').textContent = 'Hola, ' + D.vendedor.nombre.split(' ')[0];
+  $('enlace').value = link;
+  const texto = 'Mira estas mesas multifuncionales para dominó, póker y más, hechas en Colombia con envío incluido: ' + link;
+  $('shWa').href = 'https://wa.me/?text=' + encodeURIComponent(texto);
+  if (navigator.share) { $('shNat').classList.remove('hidden'); $('shNat').onclick = () => navigator.share({title:'Mesas Multifuncionales', text:texto, url:link}).catch(()=>{}); }
+  $('sCli').textContent = D.clientes; $('sPed').textContent = D.pedidos.total;
+  $('sEnt').textContent = D.pedidos.entregados; $('sPro').textContent = D.pedidos.en_proceso;
+  $('cPen').textContent = cop(D.comisiones.pendiente); $('cPag').textContent = cop(D.comisiones.pagada);
+
+  const pen = D.comisiones.pendiente, sol = D.comisiones.solicitada;
+  $('solInfo').textContent = pen > 0 ? `Puedes cobrar ${cop(pen)} ahora.` + (sol ? ` Además tienes ${cop(sol)} en revisión.` : '')
+    : (sol ? `Tienes ${cop(sol)} en revisión. Te pagamos cuando se apruebe.` : 'Todavía no tienes comisiones disponibles. Se generan cuando un pedido tuyo es entregado.');
+  $('bSol').disabled = pen <= 0;
+
+  $('lPed').innerHTML = D.lista.length ? D.lista.map(p => `
+    <div class="row"><div class="l1"><span>Pedido #${p.id} · ${esc(p.cliente)}</span>${badge(p.estado)}</div>
+    <div class="l2">${fecha(p.fecha)} · ${esc(p.ciudad)} · ${p.cantidad} mesa${p.cantidad > 1 ? 's' : ''} de ${p.puestos} puestos</div>
+    <div class="l2">${p.estado === 'cancelado' ? 'Sin comisión' : (p.estado === 'entregado' ? 'Comisión: ' + cop(p.comision) + ' · ' + esc(ESTADO[p.comision_estado] || '') : 'Comisión al entregarse: ' + cop(p.comision))}</div></div>`).join('')
+    : '<div class="empty">Aún no tienes pedidos. Comparte tu enlace para empezar.</div>';
+  $('lSol').innerHTML = D.solicitudes.length ? D.solicitudes.map(s => `
+    <div class="row"><div class="l1"><span>${cop(s.monto)} · ${esc(s.metodo)}</span>${badge(s.estado)}</div>
+    <div class="l2">Solicitado ${fecha(s.creado_en)}${s.pagado_en ? ' · Pagado ' + fecha(s.pagado_en) : ''}</div>
+    ${s.nota_admin ? `<div class="l2">Nota: ${esc(s.nota_admin)}</div>` : ''}
+    ${s.referencia_pago ? `<div class="l2">Referencia: ${esc(s.referencia_pago)}</div>` : ''}</div>`).join('')
+    : '<div class="empty">Todavía no has solicitado pagos.</div>';
+}
+
+$('copiar').onclick = async () => {
+  try { await navigator.clipboard.writeText($('enlace').value); } catch (_) { $('enlace').select(); document.execCommand('copy'); }
+  $('copiar').textContent = '¡Copiado!'; setTimeout(() => $('copiar').textContent = 'Copiar', 1800);
+};
+$('fSol').onsubmit = async e => {
+  e.preventDefault(); msg('mSol'); $('bSol').disabled = true;
+  const r = await api('/api/vendedor', {accion:'solicitar_pago', metodo:$('sm').value, cuenta:$('sc').value});
+  if (!r.ok) { $('bSol').disabled = false; return msg('mSol', 'err', r.data.error || 'No se pudo solicitar'); }
+  $('sc').value = ''; await cargarPanel(); msg('mSol', 'good', `Solicitud enviada por ${cop(r.data.solicitud.monto)}. Te avisaremos cuando se apruebe y se pague.`);
+};
+
+cargarPanel();
+</script>
+</body>
+</html>

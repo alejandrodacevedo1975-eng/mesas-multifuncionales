@@ -1,0 +1,10 @@
+{
+  "name": "mesas-multifuncionales",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Tienda de mesas multifuncionales con programa de vendedores afiliados",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "pg": "^8.11.3"
+  }
+}
