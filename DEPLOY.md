@@ -24,4 +24,4 @@
 - Atribución: gana el primer enlace de vendedor visto en los últimos 30 días; una venta nunca tiene dos vendedores.
 - Un vendedor no gana comisión por un pedido hecho con su propio celular.
 - Pagos 100 % manuales: el vendedor solicita, el admin aprueba y registra el pago.
-- Precios en `lib/util.js` (servidor) y en `index.html` (visual): 4 puestos $290.000, 6 puestos $300.000.
+- Precios en `lib/util.js` (servidor) y en `index.html` (visual): 4 puestos $290.000, 6 puestos $320.000.

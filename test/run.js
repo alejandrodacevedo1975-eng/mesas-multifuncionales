@@ -103,7 +103,7 @@ const pedidoBase = (o = {}) => ({ nombre: 'Cliente Prueba', celular: '3105550000
   r = await web.post('/api/pedido', pedidoBase({ vid: 'visitantedos2', ref: codB, celular: '3105550001', puestos: 6, cantidad: 2 }));
   p = (await pool.query('select * from pedidos where id=$1', [r.j.id])).rows[0];
   t('visita a Ana y luego Beto → la venta es de Ana (primero gana, nunca dos)', p.vendedor_id === 1, p);
-  t('6 puestos ×2 = $600.000', p.total === 600000, p.total);
+  t('6 puestos ×2 = $640.000', p.total === 640000, p.total);
 
   // Venta directa
   r = await web.post('/api/pedido', pedidoBase({ vid: 'sinenlace0001', celular: '3105550002' }));
@@ -185,7 +185,7 @@ const pedidoBase = (o = {}) => ({ nombre: 'Cliente Prueba', celular: '3105550000
   r = await Z.post('/api/admin', { accion: 'pedido_estado', id: 1, estado: 'entregado' });
   com = (await pool.query('select * from comisiones where pedido_id=1')).rows;
   t('confirmar dos veces NO duplica la comisión', com.length === 1);
-  let pid2 = (await pool.query("select id from pedidos where total=600000")).rows[0].id;
+  let pid2 = (await pool.query("select id from pedidos where total=640000")).rows[0].id;
   r = await Z.post('/api/admin', { accion: 'pedido_estado', id: pid2, estado: 'entregado' });
   com = (await pool.query('select * from comisiones where pedido_id=$1', [pid2])).rows;
   t('2 mesas entregadas → comisión $80.000 ($40.000 por mesa)', com.length === 1 && com[0].monto === 80000, com);
